@@ -40,6 +40,32 @@ poll_frequency = 5 if poll_frequency.zero?
 failed_poll_frequency = ENV["CI_FAILED_POLL_FREQUENCY"].to_i
 failed_poll_frequency = poll_frequency if failed_poll_frequency.zero?
 
+def run_options(json)
+  args = ["--rm", "-a", "STDOUT,STDERR"]
+
+  if json["hostname"]
+    args << "--hostname"
+    args << json["hostname"]
+  end
+
+  if json["env"]
+    Array(json["env"]).each do |env|
+      args << "--env"
+      args << env
+    end
+  end
+
+  if json["privileged"]
+    args << "--privileged"
+  end
+
+  if json["cmd"]
+    args.concat Array(json["cmd"])
+  end
+
+  args
+end
+
 loop do
   response = client.request("/tasks/pull", "stage" => "build_component_images")
 
@@ -48,7 +74,7 @@ loop do
     STDOUT.puts "assigned #{json}"
 
     result, output = capture("docker", "pull", json["image"])
-    result, output = capture("docker", "run", "-i", json["image"]) if result.success?
+    result, output = capture("docker", "run", "-i", json["image"], *run_options(json)) if result.success?
 
     if result.success?
       client.request("/tasks/complete", "task_id" => json["task_id"], "output" => output)
