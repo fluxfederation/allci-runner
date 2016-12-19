@@ -67,7 +67,7 @@ def run_options(json)
 end
 
 loop do
-  response = client.request("/tasks/pull", "stage" => "build_component_images")
+  response = client.request("/tasks/pull")
 
   if response.is_a?(Net::HTTPOK)
     json = JSON.parse(response.body)
