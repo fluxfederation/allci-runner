@@ -58,7 +58,7 @@ def build_images(task, buildroot)
     return [false, "Couldn't see a dockerfile named #{container_details["dockerfile"]} in the repository #{container_details["repository_uri"]} on branch #{container_details["branch"]}"] unless File.exist?(dockerfile)
 
     result, output = capture("docker", "build", "-t", container_details["image_name"], "-f", dockerfile, workdir)
-    return [result.success?, output]
+    return [result.success?, output] unless result.success?
   end
   true
 end
@@ -66,7 +66,7 @@ end
 def push_images(task)
   task["components"].each do |container_name, container_details|
     result, output = capture("docker", "push", container_details["image_name"])
-    return [result.success?, output]
+    return [result.success?, output] unless result.success?
   end
   true
 end
@@ -75,7 +75,7 @@ def pull_images(task)
   task["components"].each do |container_name, container_details|
     if container_name.include?('/')
       result, output = capture("docker", "pull", container_details["image_name"])
-      return [result.success?, output]
+      return [result.success?, output] unless result.success?
     end
   end
   true
