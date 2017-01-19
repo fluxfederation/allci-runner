@@ -28,6 +28,7 @@ def capture(*args)
   r.close
   output = w.read
   pid, result = Process.wait2(pid)
+  puts result.inspect, output.inspect
   [result, output]
 end
 
@@ -53,7 +54,10 @@ def build_images(task, buildroot)
     result, output = capture("git", "clone", "--branch", container_details["branch"], container_details["repository_uri"], workdir)
     return [result.success?, output] unless result.success?
 
-    result, output = capture("docker", "build", "-t", container_details["image_name"], "-f", "#{workdir}/#{container_details["dockerfile"]}", workdir)
+    dockerfile = "#{workdir}/#{container_details["dockerfile"]}"
+    return [false, "Couldn't see a dockerfile named #{container_details["dockerfile"]} in the repository #{container_details["repository_uri"]} on branch #{container_details["branch"]}"] unless File.exist?(dockerfile)
+
+    result, output = capture("docker", "build", "-t", container_details["image_name"], "-f", dockerfile, workdir)
     return [result.success?, output]
   end
   true
