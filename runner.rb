@@ -3,6 +3,7 @@
 require 'net/http'
 require 'net/https'
 require 'json'
+require 'fileutils'
 require 'pp'
 
 class ServiceClient
@@ -26,7 +27,7 @@ def capture(*args)
   pid = spawn(*args, :out => w)
   r.close
   output = w.read
-  result = Process.wait(pid)
+  pid, result = Process.wait2(pid)
   [result, output]
 end
 
@@ -34,11 +35,47 @@ raise("must specify the CI service URL in CI_SERVICE_URL") unless ENV["CI_SERVIC
 runner_name = ENV["RUNNER_NAME"] || Socket.gethostname
 client = ServiceClient.new(ENV["CI_SERVICE_URL"], "runner_name": runner_name)
 
+buildroot = "tmp/build"
+
 poll_frequency = ENV["CI_POLL_FREQUENCY"].to_i
 poll_frequency = 5 if poll_frequency.zero?
 
 failed_poll_frequency = ENV["CI_FAILED_POLL_FREQUENCY"].to_i
 failed_poll_frequency = poll_frequency if failed_poll_frequency.zero?
+
+def build_images(task, buildroot)
+  workdir = "#{buildroot}/workdir"
+
+  task["components"].each do |container_name, container_details|
+    FileUtils.rm_rf(workdir)
+    FileUtils.mkdir_p(workdir)
+
+    result, output = capture("git", "clone", "--branch", container_details["branch"], container_details["repository_uri"], workdir)
+    return [result.success?, output] unless result.success?
+
+    result, output = capture("docker", "build", "-t", container_details["image_name"], "-f", "#{workdir}/#{container_details["dockerfile"]}", workdir)
+    return [result.success?, output]
+  end
+  true
+end
+
+def push_images(task)
+  task["components"].each do |container_name, container_details|
+    result, output = capture("docker", "push", container_details["image_name"])
+    return [result.success?, output]
+  end
+  true
+end
+
+def pull_images(task)
+  task["components"].each do |container_name, container_details|
+    if container_name.include?('/')
+      result, output = capture("docker", "pull", container_details["image_name"])
+      return [result.success?, output]
+    end
+  end
+  true
+end
 
 def run_options(container_name, container_details)
   args = ["--rm", "-a", "STDOUT", "-a", "STDERR"]
@@ -53,10 +90,6 @@ def run_options(container_name, container_details)
     end
   end
 
-  if container_details["privileged"]
-    args << "--privileged"
-  end
-
   args << container_details["image_name"]
 
   if container_details["cmd"]
@@ -64,16 +97,6 @@ def run_options(container_name, container_details)
   end
 
   args
-end
-
-def pull_images(task)
-  task["components"].each do |container_name, container_details|
-    if container_name.include?('/')
-      result, output = capture("docker", "pull", container_details["image_name"])
-      return [result.success?, output]
-    end
-  end
-  true
 end
 
 def run_task(task)
@@ -107,11 +130,16 @@ loop do
     task = JSON.parse(response.body)
     STDOUT.puts "assigned #{task}"
 
-    success, output = pull_images(task)
-    success, output = run_task(task) if success
+    if task["stage"] == "bootstrap"
+      success, output = build_images(task, buildroot)
+      success, output = push_images(task) if success
+    else
+      success, output = pull_images(task)
+      success, output = run_task(task) if success
+    end
 
     if success
-      client.request("/tasks/complete", "task_id" => task["task_id"], "output" => output)
+      client.request("/tasks/success", "task_id" => task["task_id"], "output" => output)
     else
       client.request("/tasks/failed", "task_id" => task["task_id"], "output" => output)
     end
