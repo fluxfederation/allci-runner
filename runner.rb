@@ -4,6 +4,7 @@ require 'net/http'
 require 'net/https'
 require 'json'
 require 'fileutils'
+require 'tempfile'
 require 'pp'
 
 class ServiceClient
@@ -61,13 +62,13 @@ def build_images(task, buildroot)
     FileUtils.mkdir_p(workdir)
 
     result, output = capture("git", "clone", "--branch", container_details["branch"], container_details["repository_uri"], workdir)
-    return [result.success?, output] unless result.success?
+    return [false, {container_name => output}] unless result.success?
 
     dockerfile = "#{workdir}/#{container_details["dockerfile"]}"
-    return [false, "Couldn't see a dockerfile named #{container_details["dockerfile"]} in the repository #{container_details["repository_uri"]} on branch #{container_details["branch"]}"] unless File.exist?(dockerfile)
+    return [false, {container_name => "Couldn't see a dockerfile named #{container_details["dockerfile"]} in the repository #{container_details["repository_uri"]} on branch #{container_details["branch"]}"}] unless File.exist?(dockerfile)
 
     result, output = capture("docker", "build", "-t", container_details["image_name"], "-f", dockerfile, workdir)
-    return [result.success?, output] unless result.success?
+    return [false, {container_name => output}] unless result.success?
   end
   true
 end
@@ -75,7 +76,7 @@ end
 def push_images(task)
   task["components"].each do |container_name, container_details|
     result, output = capture("docker", "push", container_details["image_name"])
-    return [result.success?, output] unless result.success?
+    return [false, {container_name => output}] unless result.success?
   end
   true
 end
@@ -84,7 +85,7 @@ def pull_images(task)
   task["components"].each do |container_name, container_details|
     if container_name.include?('/')
       result, output = capture("docker", "pull", container_details["image_name"])
-      return [result.success?, output] unless result.success?
+      return [false, {container_name => output}] unless result.success?
     end
   end
   true
@@ -118,26 +119,37 @@ end
 def run_task(pod_name, task)
   # fork and run each container
   create_pod(pod_name)
-  children = task["components"].collect do |container_name, container_details|
-    fork { Kernel.exec("docker", "run", *run_options(pod_name, container_name, container_details)) }
+  containers = task["components"].each_with_object({}) do |(container_name, container_details), results|
+    tempfile = Tempfile.new('allci_runner_output_')
+    pid = spawn("docker", "run", *run_options(pod_name, container_name, container_details), [:out, :err] => tempfile)
+    results[pid] = {container_name: container_name, tempfile: tempfile}
   end
+  running_children = containers.keys
 
   # if we fail to spawn a child process, we've already failed
-  success = children.compact!.nil?
+  success = running_children.compact!.nil?
 
   # otherwise, we wait for them all to exit
-  while !children.empty? do
+  while !running_children.empty? do
     # wait for the first one of them to exit
     exited_child, status = Process.wait2
     success &= status.success?
-    children.delete(exited_child)
+    running_children.delete(exited_child)
 
     # then tell all the others to terminate
     remove_pod(pod_name)
   end
 
-  output = "TODO: some container failed :(" unless success
+  output = containers.each_with_object({}) do |(pid, details), results|
+    details[:tempfile].rewind
+    results[details[:container_name]] = details[:tempfile].read
+  end
   [success, output]
+ensure
+  containers.each do |pid, details|
+    details[:tempfile].close
+    details[:tempfile].unlink
+  end if containers
 end
 
 loop do
