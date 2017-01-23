@@ -130,21 +130,23 @@ def run_task(pod_name, task)
   success = running_children.compact!.nil?
 
   # otherwise, we wait for them all to exit
+  output = {}
+  exit_code = {}
   while !running_children.empty? do
     # wait for the first one of them to exit
-    exited_child, status = Process.wait2
-    success &= status.success?
+    exited_child, process_status = Process.wait2
+    container = containers[exited_child]
+    container[:tempfile].rewind
+    output[container[:container_name]] = container[:tempfile].read
+    exit_code[container[:container_name]] = process_status.exitstatus
+    success &= process_status.success?
     running_children.delete(exited_child)
 
     # then tell all the others to terminate
     remove_pod(pod_name)
   end
 
-  output = containers.each_with_object({}) do |(pid, details), results|
-    details[:tempfile].rewind
-    results[details[:container_name]] = details[:tempfile].read
-  end
-  [success, output]
+  [success, output, exit_code]
 ensure
   containers.each do |pid, details|
     details[:tempfile].close
@@ -160,18 +162,18 @@ loop do
     STDOUT.puts "assigned #{task}"
 
     if task["stage"] == "bootstrap"
-      success, output = build_images(task, buildroot)
-      success, output = push_images(task) if success
-      success, output = run_task(pod_name, task) if success
+      success, output, exit_code = build_images(task, buildroot)
+      success, output, exit_code = push_images(task) if success
+      success, output, exit_code = run_task(pod_name, task) if success
     else
-      success, output = pull_images(task)
-      success, output = run_task(pod_name, task) if success
+      success, output, exit_code = pull_images(task)
+      success, output, exit_code = run_task(pod_name, task) if success
     end
 
     if success
-      client.request("/tasks/success", "task_id" => task["task_id"], "output" => output)
+      client.request("/tasks/success", "task_id" => task["task_id"], "output" => output, "exit_code" => exit_code)
     else
-      client.request("/tasks/failed", "task_id" => task["task_id"], "output" => output)
+      client.request("/tasks/failed", "task_id" => task["task_id"], "output" => output, "exit_code" => exit_code)
     end
   elsif response.is_a?(Net::HTTPNoContent)
     STDOUT.puts "no tasks to run"
