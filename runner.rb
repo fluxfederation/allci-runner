@@ -47,11 +47,11 @@ failed_poll_frequency = ENV["CI_FAILED_POLL_FREQUENCY"].to_i
 failed_poll_frequency = poll_frequency if failed_poll_frequency.zero?
 
 def create_pod(pod_name)
-  system "docker network create --driver bridge #{pod_name}"
+  system "docker network create --driver bridge #{pod_name}", [:out, :err] => "/dev/null"
 end
 
 def remove_pod(pod_name)
-  system "docker rm -f $(docker ps --quiet --filter network=#{pod_name}); docker network rm #{pod_name}"
+  system "docker rm -f $(docker ps --quiet --filter network=#{pod_name}); docker network rm #{pod_name}", [:out, :err] => "/dev/null"
 end
 
 def build_images(task, buildroot)
