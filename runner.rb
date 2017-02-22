@@ -256,7 +256,7 @@ loop do
 
   if response.is_a?(Net::HTTPOK)
     task = JSON.parse(response.body)
-    puts "assigned #{task}"
+    puts "task #{task["task_id"]} stage #{task["stage"]} task #{task["task"]} assigned"
 
     task_runner = TaskRunner.new(task: task, pod_name: pod_name, buildroot: buildroot)
     task_runner.create_pod
@@ -272,7 +272,7 @@ loop do
 
     task_runner.remove_pod
 
-    puts "finished task #{task["task_id"]}, #{success ? 'success' : 'failed'}"
+    puts "task #{task["task_id"]} finished, #{success ? 'success' : 'failed'}"
     if success
       client.request("/tasks/success", "task_id" => task["task_id"], "output" => output, "exit_code" => exit_code)
     else
