@@ -185,14 +185,14 @@ class RunImageTasklet < Tasklet
 end
 
 class TaskRunner
-  attr_reader :task, :pod_name, :build_root
+  attr_reader :task, :pod_name, :build_root, :workdir
 
   def initialize(task:, pod_name:, build_root:)
     @task = task
     @pod_name = pod_name
     @build_root = build_root
 
-    @workdir = "#{build_root}/workdir"
+    @workdir = "#{build_root}/#{@pod_name}"
     reset_workdir
   end
 
@@ -252,10 +252,6 @@ class TaskRunner
   end
 
 protected
-  def workdir
-    @workdir ||= File.join(build_root, "workdir")
-  end
-
   def logfile_for(container_name)
     File.join(workdir, "#{container_name.tr('^A-Za-z0-9_', '_')}.log")
   end
