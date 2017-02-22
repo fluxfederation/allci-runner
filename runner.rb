@@ -151,14 +151,14 @@ class RunImageTasklet < Tasklet
 end
 
 class TaskRunner
-  attr_reader :task, :pod_name, :buildroot
+  attr_reader :task, :pod_name, :build_root
 
-  def initialize(task:, pod_name:, buildroot:)
+  def initialize(task:, pod_name:, build_root:)
     @task = task
     @pod_name = pod_name
-    @buildroot = buildroot
+    @build_root = build_root
 
-    @workdir = "#{buildroot}/workdir"
+    @workdir = "#{build_root}/workdir"
     reset_workdir
   end
 
@@ -217,7 +217,7 @@ class TaskRunner
 
 protected
   def workdir
-    @workdir ||= File.join(buildroot, "workdir")
+    @workdir ||= File.join(build_root, "workdir")
   end
 
   def logfile_for(container_name)
@@ -243,7 +243,7 @@ runner_name = ENV["RUNNER_NAME"] || Socket.gethostname
 client = ServiceClient.new(ENV["CI_SERVICE_URL"], "runner_name": runner_name)
 
 pod_name = ENV["POD_NAME"] || "allci-runner#{ENV["RUNNER_NUMBER"]}"
-buildroot = ENV["BUILDROOT"] || "tmp/build"
+build_root = ENV["BUILD_ROOT"] || "tmp/build"
 
 poll_frequency = ENV["CI_POLL_FREQUENCY"].to_i
 poll_frequency = 5 if poll_frequency.zero?
@@ -258,7 +258,7 @@ loop do
     task = JSON.parse(response.body)
     puts "task #{task["task_id"]} stage #{task["stage"]} task #{task["task"]} assigned"
 
-    task_runner = TaskRunner.new(task: task, pod_name: pod_name, buildroot: buildroot)
+    task_runner = TaskRunner.new(task: task, pod_name: pod_name, build_root: build_root)
     task_runner.create_pod
 
     if task["stage"] == "bootstrap"
