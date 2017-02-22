@@ -23,11 +23,13 @@ class ServiceClient
 end
 
 class Tasklet
-  attr_reader :task_id, :pod_name, :container_name, :container_details, :log_filename, :workdir, :log
+  attr_reader :build_task_id, :build_stage, :build_task, :pod_name, :container_name, :container_details, :log_filename, :workdir, :log
 
   # called in the parent process
-  def initialize(task_id:, pod_name:, container_name:, container_details:, log_filename:, workdir:)
-    @task_id = task_id
+  def initialize(build_task_id:, build_stage:, build_task:, pod_name:, container_name:, container_details:, log_filename:, workdir:)
+    @build_task_id = build_task_id
+    @build_stage = build_stage
+    @build_task = build_task
     @pod_name = pod_name
     @container_name = container_name
     @container_details = container_details
@@ -66,7 +68,7 @@ end
 
 class BuildImageTasklet < Tasklet
   def to_s
-    "build image #{container_details["image_name"].inspect} from #{container_details["repository_uri"].inspect} branch #{container_details["branch"].inspect} dockerfile #{container_details["dockerfile"].inspect}"
+    "task #{build_task_id} build image #{container_details["image_name"].inspect} from #{container_details["repository_uri"].inspect} branch #{container_details["branch"].inspect} dockerfile #{container_details["dockerfile"].inspect}"
   end
 
   def call
@@ -89,7 +91,7 @@ end
 
 class PushImageTasklet < Tasklet
   def to_s
-    "push image #{container_details["image_name"].inspect}"
+    "task #{build_task_id} push image #{container_details["image_name"].inspect}"
   end
 
   def call
@@ -99,7 +101,7 @@ end
 
 class PullImageTasklet < Tasklet
   def to_s
-    "pull image #{container_details["image_name"].inspect}"
+    "task #{build_task_id} pull image #{container_details["image_name"].inspect}"
   end
 
   def call
@@ -109,7 +111,7 @@ end
 
 class RunImageTasklet < Tasklet
   def to_s
-    "run image #{container_details["image_name"].inspect} in pod #{pod_name.inspect}"
+    "task #{build_task_id} run image #{container_details["image_name"].inspect} in pod #{pod_name.inspect}"
   end
 
   def call
@@ -133,6 +135,20 @@ class RunImageTasklet < Tasklet
         args << "#{key}=#{value}"
       end
     end
+
+    %w(CI_SERVICE_URL RUNNER_NAME POD_NAME).each do |key|
+      args << "--env"
+      args << "#{key}=#{ENV["value"]}"
+    end
+
+    args << "--env"
+    args << "BUILD_TASK_ID=#{build_task_id}"
+
+    args << "--env"
+    args << "BUILD_STAGE=#{build_stage}"
+
+    args << "--env"
+    args << "BUILD_TASK=#{build_task}"
 
     args << container_details["image_name"]
 
@@ -174,7 +190,9 @@ class TaskRunner
     # instantiate one tasklet object per component (ie. container)
     tasklets = task["components"].collect do |container_name, container_details|
       klass.new(
-        task_id: task["task_id"],
+        build_task_id: task["task_id"],
+        build_stage: task["stage"],
+        build_task: task["task"],
         pod_name: pod_name,
         container_name: container_name,
         container_details: container_details,
@@ -184,7 +202,7 @@ class TaskRunner
 
     # fork and run each tasklet
     running_tasklets = tasklets.each_with_object({}) do |tasklet, results|
-      puts "task #{tasklet.task_id} tasklet #{tasklet} starting."
+      puts "#{tasklet} starting."
       results[tasklet.spawn_and_run] = tasklet
     end
 
@@ -203,9 +221,9 @@ class TaskRunner
       success &= process_status.success?
 
       if process_status.success?
-        puts "task #{tasklet.task_id} tasklet #{tasklet} successful."
+        puts "#{tasklet} successful."
       else
-        puts "task #{tasklet.task_id} tasklet #{tasklet} failed with exit code #{exit_code[tasklet.container_name]}.  container output:\n\n\t#{output[tasklet.container_name].gsub "\n", "\n\t"}"
+        puts "#{tasklet} failed with exit code #{exit_code[tasklet.container_name]}.  container output:\n\n\t#{output[tasklet.container_name].gsub "\n", "\n\t"}"
       end
 
       # depending on the tasklet, it may then tell all the others to stop
