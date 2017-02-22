@@ -84,7 +84,25 @@ class BuildImageTasklet < Tasklet
     end
 
     log.puts "Building #{container_details["image_name"]} using dockerfile #{container_details["dockerfile"]}"
-    system("docker", "build", "-t", container_details["image_name"], "-f", dockerfile, workdir, [:out, :err] => log)
+    args = []
+
+    args << "-t"
+    args << container_details["image_name"]
+
+    args << "-f"
+    args << dockerfile
+
+    # by default we also make the runtime env variables available as build-time args; they'll have no effect unless the Dockerfile uses ARG
+    if container_details["args"] || container_details["env"]
+      Array(container_details["args"] || container_details["env"]).each do |key, value|
+        args << "--build-arg"
+        args << "#{key}=#{value}"
+      end
+    end
+
+    args << workdir
+
+    system("docker", "build", *args, [:out, :err] => log)
     exit $?.exitstatus
   end
 end
@@ -274,7 +292,7 @@ loop do
 
   if response.is_a?(Net::HTTPOK)
     task = JSON.parse(response.body)
-    puts "task #{task["task_id"]} stage #{task["stage"]} task #{task["task"]} assigned"
+    puts "task #{task["task_id"]} stage #{task["stage"]} task #{task["task"]} assigned".squeeze(" ")
 
     task_runner = TaskRunner.new(task: task, pod_name: pod_name, build_root: build_root)
     task_runner.create_pod
