@@ -18,11 +18,15 @@ build_root = ENV["BUILD_ROOT"] || "tmp/build"
 poll_frequency = ENV["CI_POLL_FREQUENCY"].to_i
 poll_frequency = 5 if poll_frequency.zero?
 
+dots = false
+
 loop do
   response = client.request("/tasks/pull")
 
   if response.is_a?(Net::HTTPOK)
     task = JSON.parse(response.body)
+    puts if dots
+    dots = false
     puts "task #{task["task_id"]} stage #{task["stage"]} task #{task["task"]} assigned".squeeze(" ")
 
     task_runner = TaskRunner.new(task: task, pod_name: pod_name, build_root: build_root)
@@ -46,7 +50,8 @@ loop do
       client.request("/tasks/failed", "task_id" => task["task_id"], "output" => output, "exit_code" => exit_code)
     end
   elsif response.is_a?(Net::HTTPNoContent)
-    puts "no tasks to run"
+    print "."
+    dots = true
     sleep poll_frequency
   else
     response.error!
