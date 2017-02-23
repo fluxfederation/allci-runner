@@ -274,7 +274,7 @@ raise("must specify the CI service URL in CI_SERVICE_URL") unless ENV["CI_SERVIC
 runner_name = ENV["RUNNER_NAME"] || Socket.gethostname
 client = ServiceClient.new(ENV["CI_SERVICE_URL"], "runner_name": runner_name)
 
-pod_name = ENV["POD_NAME"] || "allci-runner#{ENV["RUNNER_NUMBER"]}"
+pod_name = "allci-runner-#{ENV["RUNNER_NAME"]}"
 build_root = ENV["BUILD_ROOT"] || "tmp/build"
 
 poll_frequency = ENV["CI_POLL_FREQUENCY"].to_i
