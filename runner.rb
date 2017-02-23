@@ -7,11 +7,14 @@ require 'fileutils'
 require 'tempfile'
 require 'pp'
 
-class ServiceClient
-  def initialize(service_url, standard_params)
+class AllciClient
+  attr_reader :service_url, :runner_name
+
+  def initialize(service_url = ENV["CI_SERVICE_URL"], runner_name = ENV["RUNNER_NAME"] || Socket.gethostname)
     @service_url = URI(service_url)
+    @runner_name = runner_name
     @http = Net::HTTP.new(@service_url.hostname, @service_url.port)
-    @standard_params = standard_params
+    @standard_params = { "runner_name": @runner_name }
   end
 
   def request(path, json_params = {})
@@ -271,10 +274,9 @@ protected
 end
 
 raise("must specify the CI service URL in CI_SERVICE_URL") unless ENV["CI_SERVICE_URL"]
-runner_name = ENV["RUNNER_NAME"] || Socket.gethostname
-client = ServiceClient.new(ENV["CI_SERVICE_URL"], "runner_name": runner_name)
+client = AllciClient.new
 
-pod_name = "allci-runner-#{ENV["RUNNER_NAME"]}"
+pod_name = "allci-runner-#{client.runner_name}"
 build_root = ENV["BUILD_ROOT"] || "tmp/build"
 
 poll_frequency = ENV["CI_POLL_FREQUENCY"].to_i
