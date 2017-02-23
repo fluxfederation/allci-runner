@@ -18,9 +18,6 @@ build_root = ENV["BUILD_ROOT"] || "tmp/build"
 poll_frequency = ENV["CI_POLL_FREQUENCY"].to_i
 poll_frequency = 5 if poll_frequency.zero?
 
-failed_poll_frequency = ENV["CI_FAILED_POLL_FREQUENCY"].to_i
-failed_poll_frequency = poll_frequency if failed_poll_frequency.zero?
-
 loop do
   response = client.request("/tasks/pull")
 
@@ -52,7 +49,6 @@ loop do
     puts "no tasks to run"
     sleep poll_frequency
   else
-    STDERR.puts response.inspect
-    sleep failed_poll_frequency
+    response.error!
   end
 end
