@@ -30,6 +30,7 @@ loop do
     puts "task #{task["task_id"]} stage #{task["stage"]} task #{task["task"]} assigned".squeeze(" ")
 
     task_runner = TaskRunner.new(task: task, pod_name: pod_name, build_root: build_root)
+    task_runner.remove_pod
     task_runner.create_pod
 
     if task["stage"] == "bootstrap"
