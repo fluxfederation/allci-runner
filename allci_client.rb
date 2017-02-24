@@ -9,7 +9,7 @@ class AllciClient
     @service_url = URI(service_url)
     @runner_name = runner_name
     @http = Net::HTTP.new(@service_url.hostname, @service_url.port)
-    @standard_params = { "runner_name": @runner_name }
+    @standard_params = { "runner_name" => @runner_name }
   end
 
   def request(path, json_params = {})
