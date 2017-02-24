@@ -59,6 +59,13 @@ class BuildImageTasklet < Tasklet
       exit 1
     end
 
+    # FUTURE: extract this to a generic build hook mechanism, or have a "meta" docker builder container
+    if File.exist?("#{workdir}/Gemfile.lock")
+      log.puts "Packaging bundle for #{container_details["image_name"]}"
+      Dir.chdir(workdir) { system("bundle", "package", "--all", [:out, :err] => log) }
+      exit $?.exitstatus unless $?.success?
+    end
+
     log.puts "Building #{container_details["image_name"]} using dockerfile #{container_details["dockerfile"]}"
     args = []
 
