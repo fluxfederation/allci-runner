@@ -48,12 +48,13 @@ class BuildImageTasklet < Tasklet
   end
 
   def call
-    dockerfile = "#{workdir}/#{container_details["dockerfile"]}"
+    FileUtils.mkdir_p(workdir)
 
     log.puts "Cloning #{container_details["repository_uri"]} and checking out branch #{container_details["branch"]}"
     system("git", "clone", "--branch", container_details["branch"], container_details["repository_uri"], workdir, [:out, :err] => log)
     exit $?.exitstatus unless $?.success?
 
+    dockerfile = "#{workdir}/#{container_details["dockerfile"]}"
     unless File.exist?(dockerfile)
       log.puts "Couldn't see a dockerfile named #{container_details["dockerfile"]} in the repository #{container_details["repository_uri"]} on branch #{container_details["branch"]}"
       exit 1

@@ -1,12 +1,12 @@
 class TaskRunner
-  attr_reader :task, :pod_name, :build_root, :workdir
+  attr_reader :task, :pod_name, :build_root, :pod_directory
 
   def initialize(task:, pod_name:, build_root:)
     @task = task
     @pod_name = pod_name
     @build_root = build_root
 
-    @workdir = "#{build_root}/#{@pod_name}"
+    @pod_directory = "#{build_root}/#{@pod_name}"
     reset_workdir
   end
 
@@ -67,19 +67,15 @@ class TaskRunner
 
 protected
   def logfile_for(container_name)
-    File.join(workdir, "#{container_name.tr('^A-Za-z0-9_', '_')}.log")
+    File.join(pod_directory, "#{container_name.tr('^A-Za-z0-9_', '_')}.log")
   end
 
   def workdir_for(container_name)
-    File.join(workdir, container_name.tr('^A-Za-z0-9_', '_'))
+    File.join(pod_directory, container_name.tr('^A-Za-z0-9_', '_'))
   end
 
   def reset_workdir
-    FileUtils.rm_rf(workdir)
-    FileUtils.mkdir_p(workdir)
-
-    task["components"].each do |container_name, container_details|
-      FileUtils.mkdir_p(workdir_for(container_name))
-    end
+    FileUtils.rm_rf(pod_directory)
+    FileUtils.mkdir_p(pod_directory)
   end
 end
