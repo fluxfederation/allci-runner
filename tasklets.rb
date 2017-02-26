@@ -156,6 +156,11 @@ class RunImageTasklet < Tasklet
     args << "--env"
     args << "BUILD_TASK=#{build_task}"
 
+    if container_details["tmpfs"]
+      args << "--tmpfs"
+      args << container_details["tmpfs"]
+    end
+
     args << container_details["image_name"]
 
     if container_details["cmd"]
