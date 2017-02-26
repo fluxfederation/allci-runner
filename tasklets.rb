@@ -140,7 +140,7 @@ class RunImageTasklet < Tasklet
 
     %w(CI_SERVICE_URL RUNNER_NAME POD_NAME).each do |key|
       args << "--env"
-      args << "#{key}=#{ENV["value"]}"
+      args << "#{key}=#{ENV[key]}"
     end
 
     args << "--env"
