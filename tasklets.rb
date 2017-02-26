@@ -1,9 +1,10 @@
 class Tasklet
-  attr_reader :build_task_id, :build_stage, :build_task, :pod_name, :container_name, :container_details, :log_filename, :workdir, :log
+  attr_reader :build_task_id, :build_id, :build_stage, :build_task, :pod_name, :container_name, :container_details, :log_filename, :workdir, :log
 
   # called in the parent process
-  def initialize(build_task_id:, build_stage:, build_task:, pod_name:, container_name:, container_details:, log_filename:, workdir:)
+  def initialize(build_task_id:, build_id:, build_stage:, build_task:, pod_name:, container_name:, container_details:, log_filename:, workdir:)
     @build_task_id = build_task_id
+    @build_id = build_id
     @build_stage = build_stage
     @build_task = build_task
     @pod_name = pod_name
@@ -145,6 +146,9 @@ class RunImageTasklet < Tasklet
 
     args << "--env"
     args << "BUILD_TASK_ID=#{build_task_id}"
+
+    args << "--env"
+    args << "BUILD_ID=#{build_id}"
 
     args << "--env"
     args << "BUILD_STAGE=#{build_stage}"

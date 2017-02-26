@@ -23,6 +23,7 @@ class TaskRunner
     tasklets = task["components"].collect do |container_name, container_details|
       klass.new(
         build_task_id: task["task_id"],
+        build_id: task["build_id"],
         build_stage: task["stage"],
         build_task: task["task"],
         pod_name: pod_name,
