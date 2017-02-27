@@ -108,7 +108,11 @@ class PullImageTasklet < Tasklet
   end
 
   def call
-    exec("docker", "pull", container_details["image_name"], [:out, :err] => log)
+    system("docker", "inspect", container_details["image_name"], [:out, :err] => "/dev/null")
+
+    unless $?.success?
+      exec("docker", "pull", container_details["image_name"], [:out, :err] => log)
+    end
   end
 end
 
