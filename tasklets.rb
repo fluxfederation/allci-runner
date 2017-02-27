@@ -1,3 +1,5 @@
+require 'digest'
+
 class Tasklet
   attr_reader :build_task_id, :build_id, :build_stage, :build_task, :pod_name, :container_name, :container_details, :log_filename, :workdir, :cachedir, :log
 
@@ -50,10 +52,19 @@ class BuildImageTasklet < Tasklet
   end
 
   def call
-    FileUtils.mkdir_p(workdir)
+    if Dir.exist?(repository_cache_path)
+      log.puts "Updating #{container_details["repository_uri"]}"
+      Dir.chdir(repository_cache_path) { system("git", "fetch", [:out, :err] => log) }
+      exit $?.exitstatus unless $?.success?
+    else
+      log.puts "Cloning #{container_details["repository_uri"]}"
+      system("git", "clone", "--bare", container_details["repository_uri"], repository_cache_path, [:out, :err] => log)
+      exit $?.exitstatus unless $?.success?
+    end
 
-    log.puts "Cloning #{container_details["repository_uri"]} and checking out branch #{container_details["branch"]}"
-    system("git", "clone", "--branch", container_details["branch"], container_details["repository_uri"], workdir, [:out, :err] => log)
+    log.puts "Cloning cached repository and checking out branch #{container_details["branch"]}"
+    FileUtils.rm_r(workdir) if File.exist?(workdir)
+    system("git", "clone", "--branch", container_details["branch"], repository_cache_path, workdir, [:out, :err] => log)
     exit $?.exitstatus unless $?.success?
 
     dockerfile = "#{workdir}/#{container_details["dockerfile"]}"
@@ -90,6 +101,10 @@ class BuildImageTasklet < Tasklet
 
     system("docker", "build", *args, [:out, :err] => log)
     exit $?.exitstatus
+  end
+
+  def repository_cache_path
+    @repository_cache_path ||= "#{cachedir}/repository/#{Digest::SHA256.hexdigest container_details["repository_uri"]}"
   end
 end
 
