@@ -1,8 +1,8 @@
 class Tasklet
-  attr_reader :build_task_id, :build_id, :build_stage, :build_task, :pod_name, :container_name, :container_details, :log_filename, :workdir, :log
+  attr_reader :build_task_id, :build_id, :build_stage, :build_task, :pod_name, :container_name, :container_details, :log_filename, :workdir, :cachedir, :log
 
   # called in the parent process
-  def initialize(build_task_id:, build_id:, build_stage:, build_task:, pod_name:, container_name:, container_details:, log_filename:, workdir:)
+  def initialize(build_task_id:, build_id:, build_stage:, build_task:, pod_name:, container_name:, container_details:, log_filename:, workdir:, cachedir:)
     @build_task_id = build_task_id
     @build_id = build_id
     @build_stage = build_stage
@@ -12,6 +12,7 @@ class Tasklet
     @container_details = container_details
     @log_filename = log_filename
     @workdir = workdir
+    @cachedir = cachedir
   end
 
   def spawn_and_run

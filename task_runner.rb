@@ -1,13 +1,15 @@
 class TaskRunner
-  attr_reader :task, :pod_name, :build_root, :pod_directory
+  attr_reader :task, :pod_name, :build_root, :pod_build_directory, :pod_cache_directory
 
-  def initialize(task:, pod_name:, build_root:)
+  def initialize(task:, pod_name:, build_root:, cache_root:)
     @task = task
     @pod_name = pod_name
     @build_root = build_root
 
-    @pod_directory = "#{build_root}/#{@pod_name}"
+    @pod_build_directory = "#{build_root}/#{@pod_name}"
+    @pod_cache_directory = "#{cache_root}/#{@pod_name}"
     reset_workdir
+    make_cachedir
   end
 
   def create_pod
@@ -30,7 +32,8 @@ class TaskRunner
         container_name: container_name,
         container_details: container_details,
         log_filename: logfile_for(container_name),
-        workdir: workdir_for(container_name))
+        workdir: workdir_for(container_name),
+        cachedir: cachedir_for(container_name))
     end
 
     # fork and run each tasklet
@@ -68,15 +71,23 @@ class TaskRunner
 
 protected
   def logfile_for(container_name)
-    File.join(pod_directory, "#{container_name.tr('^A-Za-z0-9_', '_')}.log")
+    File.join(pod_build_directory, "#{container_name.tr('^A-Za-z0-9_', '_')}.log")
   end
 
   def workdir_for(container_name)
-    File.join(pod_directory, container_name.tr('^A-Za-z0-9_', '_'))
+    File.join(pod_build_directory, container_name.tr('^A-Za-z0-9_', '_'))
+  end
+
+  def cachedir_for(container_name)
+    File.join(pod_cache_directory, container_name.tr('^A-Za-z0-9_', '_'))
   end
 
   def reset_workdir
-    FileUtils.rm_rf(pod_directory)
-    FileUtils.mkdir_p(pod_directory)
+    FileUtils.rm_rf(pod_build_directory)
+    FileUtils.mkdir_p(pod_build_directory)
+  end
+
+  def make_cachedir
+    FileUtils.mkdir_p(pod_cache_directory)
   end
 end
