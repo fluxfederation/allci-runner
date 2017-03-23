@@ -22,7 +22,8 @@ poll_frequency = 5 if poll_frequency.zero?
 dots = false
 
 loop do
-  response = client.request("/tasks/pull")
+  # FUTURE: move the BuildImageTasklet inside a privileged docker container, and remove the need for a special bootstrap stage
+  response = client.request("/tasks/pull", stage: %w(bootstrap spawn))
 
   if response.is_a?(Net::HTTPOK)
     task = JSON.parse(response.body)
