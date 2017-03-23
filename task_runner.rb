@@ -1,13 +1,14 @@
 class TaskRunner
-  attr_reader :task, :pod_name, :build_root, :pod_build_directory, :pod_cache_directory
+  attr_reader :task, :runner_name, :pod_name, :build_root, :pod_build_directory, :pod_cache_directory
 
-  def initialize(task:, pod_name:, build_root:, cache_root:)
+  def initialize(task:, runner_name:, build_root:, cache_root:)
     @task = task
-    @pod_name = pod_name
+    @runner_name = runner_name
+    @pod_name = "allci-runner-#{runner_name}"
     @build_root = build_root
 
-    @pod_build_directory = "#{build_root}/#{@pod_name}"
-    @pod_cache_directory = "#{cache_root}/#{@pod_name}"
+    @pod_build_directory = "#{build_root}/#{pod_name}"
+    @pod_cache_directory = "#{cache_root}/#{pod_name}"
     reset_workdir
     make_cachedir
   end
@@ -28,6 +29,7 @@ class TaskRunner
         build_id: task["build_id"],
         build_stage: task["stage"],
         build_task: task["task"],
+        runner_name: runner_name,
         pod_name: pod_name,
         container_name: container_name,
         container_details: container_details,

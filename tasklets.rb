@@ -1,14 +1,15 @@
 require 'digest'
 
 class Tasklet
-  attr_reader :build_task_id, :build_id, :build_stage, :build_task, :pod_name, :container_name, :container_details, :log_filename, :workdir, :cachedir, :log
+  attr_reader :build_task_id, :build_id, :build_stage, :build_task, :runner_name, :pod_name, :container_name, :container_details, :log_filename, :workdir, :cachedir, :log
 
   # called in the parent process
-  def initialize(build_task_id:, build_id:, build_stage:, build_task:, pod_name:, container_name:, container_details:, log_filename:, workdir:, cachedir:)
+  def initialize(build_task_id:, build_id:, build_stage:, build_task:, runner_name:, pod_name:, container_name:, container_details:, log_filename:, workdir:, cachedir:)
     @build_task_id = build_task_id
     @build_id = build_id
     @build_stage = build_stage
     @build_task = build_task
+    @runner_name = runner_name
     @pod_name = pod_name
     @container_name = container_name
     @container_details = container_details
@@ -140,56 +141,63 @@ class RunImageTasklet < Tasklet
   end
 
   def call
-    args = ["--rm", "-a", "STDOUT", "-a", "STDERR"]
+    command = ["docker", "run", "--rm", "-a", "STDOUT", "-a", "STDERR"]
 
-    args << "--network"
-    args << pod_name
+    command << "--network"
+    command << pod_name
 
-    args << "--name"
-    args << "#{pod_name}_#{container_name}"
+    command << "--name"
+    command << "#{pod_name}_#{container_name}"
 
-    args << "--network-alias"
-    args << container_name
+    command << "--network-alias"
+    command << container_name
 
-    args << "--hostname"
-    args << (container_details["hostname"] || container_name)
+    command << "--hostname"
+    command << (container_details["hostname"] || container_name)
 
     if container_details["env"]
       Array(container_details["env"]).each do |key, value|
-        args << "--env"
-        args << "#{key}=#{value}"
+        command << "--env"
+        command << "#{key}=#{value}"
       end
     end
 
-    %w(CI_SERVICE_URL RUNNER_NAME POD_NAME).each do |key|
-      args << "--env"
-      args << "#{key}=#{ENV[key]}"
-    end
+    command << "--env"
+    command << "CI_SERVICE_URL=#{ENV["CI_SERVICE_URL"]}"
 
-    args << "--env"
-    args << "BUILD_TASK_ID=#{build_task_id}"
+    command << "--env"
+    command << "RUNNER_NAME=#{runner_name}"
 
-    args << "--env"
-    args << "BUILD_ID=#{build_id}"
+    command << "--env"
+    command << "POD_NAME=#{pod_name}"
 
-    args << "--env"
-    args << "BUILD_STAGE=#{build_stage}"
+    command << "--env"
+    command << "CONTAINER_NAME=#{container_name}"
 
-    args << "--env"
-    args << "BUILD_TASK=#{build_task}"
+    command << "--env"
+    command << "BUILD_TASK_ID=#{build_task_id}"
+
+    command << "--env"
+    command << "BUILD_ID=#{build_id}"
+
+    command << "--env"
+    command << "BUILD_STAGE=#{build_stage}"
+
+    command << "--env"
+    command << "BUILD_TASK=#{build_task}"
 
     if container_details["tmpfs"]
-      args << "--tmpfs"
-      args << container_details["tmpfs"]
+      command << "--tmpfs"
+      command << container_details["tmpfs"]
     end
 
-    args << container_details["image_name"]
+    command << container_details["image_name"]
 
     if container_details["cmd"]
-      args.concat Array(container_details["cmd"])
+      command.concat Array(container_details["cmd"])
     end
 
-    exec("docker", "run", *args, [:out, :err] => log)
+    exec(*command, [:out, :err] => log)
   end
 
   def finished(process_status, running_tasklets)

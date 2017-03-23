@@ -12,7 +12,6 @@ service_url = ENV["CI_SERVICE_URL"] or raise("must specify the CI service URL in
 runner_name = ENV["RUNNER_NAME"] || Socket.gethostname
 client = AllciClient.new(service_url, runner_name)
 
-pod_name = "allci-runner-#{runner_name}"
 build_root = ENV["BUILD_ROOT"] || "tmp/build"
 cache_root = ENV["CACHE_ROOT"] || "tmp/cache"
 
@@ -30,7 +29,7 @@ loop do
     dots = false
     puts "task #{task["task_id"]} stage #{task["stage"]} task #{task["task"]} assigned".squeeze(" ")
 
-    task_runner = TaskRunner.new(task: task, pod_name: pod_name, build_root: build_root, cache_root: cache_root)
+    task_runner = TaskRunner.new(task: task, runner_name: runner_name, build_root: build_root, cache_root: cache_root)
     task_runner.remove_pod
     task_runner.create_pod
 
