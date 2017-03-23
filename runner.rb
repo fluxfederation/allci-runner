@@ -23,10 +23,9 @@ dots = false
 
 loop do
   # FUTURE: move the BuildImageTasklet inside a privileged docker container, and remove the need for a special bootstrap stage
-  response = client.request("/tasks/pull", stage: %w(bootstrap spawn))
+  task = client.request("/tasks/pull", stage: %w(bootstrap spawn))
 
-  if response.is_a?(Net::HTTPOK)
-    task = JSON.parse(response.body)
+  if task
     puts if dots
     dots = false
     puts "task #{task["task_id"]} stage #{task["stage"]} task #{task["task"]} assigned".squeeze(" ")
@@ -52,11 +51,9 @@ loop do
     else
       client.request("/tasks/failed", "task_id" => task["task_id"], "output" => output, "exit_code" => exit_code)
     end
-  elsif response.is_a?(Net::HTTPNoContent)
+  else
     print "."
     dots = true
     sleep poll_frequency
-  else
-    response.error!
   end
 end

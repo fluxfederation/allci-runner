@@ -16,6 +16,11 @@ class AllciClient
     req = Net::HTTP::Post.new(path)
     req.body = @standard_params.merge(json_params).to_json
     req.content_type = 'application/json'
-    @http.request(req)
+
+    response = @http.request(req)
+
+    return nil if response.is_a?(Net::HTTPNoContent)
+    response.error! unless response.is_a?(Net::HTTPOK)
+    JSON.parse(response.body)
   end
 end
