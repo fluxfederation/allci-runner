@@ -58,7 +58,7 @@ class BuildImageTasklet < Tasklet
       exit $?.exitstatus unless $?.success?
     else
       log.puts "Cloning #{container_details["repository_uri"]}"
-      system("git", "clone", "--bare", container_details["repository_uri"], repository_cache_path, [:out, :err] => log)
+      system("git", "clone", "--mirror", container_details["repository_uri"], repository_cache_path, [:out, :err] => log)
       exit $?.exitstatus unless $?.success?
     end
 
@@ -66,6 +66,8 @@ class BuildImageTasklet < Tasklet
     FileUtils.rm_r(workdir) if File.exist?(workdir)
     system("git", "clone", "--branch", container_details["branch"], repository_cache_path, workdir, [:out, :err] => log)
     exit $?.exitstatus unless $?.success?
+
+    Dir.chdir(workdir) { system("git", "log", "-n1", "--oneline", [:out, :err] => log) }
 
     dockerfile = "#{workdir}/#{container_details["dockerfile"]}"
     unless File.exist?(dockerfile)
