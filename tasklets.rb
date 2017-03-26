@@ -79,7 +79,19 @@ class BuildImageTasklet < Tasklet
     # FUTURE: extract this to a generic build hook mechanism, or have a "meta" docker builder container
     if File.exist?("#{workdir}/Gemfile.lock")
       log.puts "Packaging bundle for #{container_details["image_name"]}"
+
+      # we need to cache the bundle because nothing outside the build context will be available during
+      # the docker build, and we would otherwise have to put the deploy key in the docker build.  we
+      # also want to reuse gem downloads whereever possible, even if one of the other gems has changed,
+      # which isn't possible inside the docker build (you can use a volume at runtime, but not in build).
       Dir.chdir(workdir) { system("bundle", "package", "--all", [:out, :err] => log) }
+      exit $?.exitstatus unless $?.success?
+
+      # we then reset the timestamps because bundle package --all has to copy the files installed from
+      # git gems directly and it always touches their timestamps, which would then make docker's COPY
+      # command think the gems directory has changed and would cause it to reinstall rather than using
+      # the image of that step from last time.
+      Dir.chdir(workdir) { system("find vendor/cache | xargs touch -t 200001010000.00") }
       exit $?.exitstatus unless $?.success?
     end
 
