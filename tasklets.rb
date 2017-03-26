@@ -44,6 +44,21 @@ class Tasklet
   def finished(process_status, running_tasklets)
   end
 
+  def exec(*args)
+    log_command(*args)
+    super
+  end
+
+  def system(*args)
+    log_command(*args)
+    super
+  end
+
+  def log_command(*args)
+    args.pop if args.last.is_a?(Hash)
+    log.puts "Running #{args.join ' '}"
+  end
+
   # subclasses must implement the #call method, which will be called in the spawned child process and should never return
 end
 
