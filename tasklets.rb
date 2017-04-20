@@ -99,7 +99,7 @@ class BuildImageTasklet < Tasklet
       # the docker build, and we would otherwise have to put the deploy key in the docker build.  we
       # also want to reuse gem downloads whereever possible, even if one of the other gems has changed,
       # which isn't possible inside the docker build (you can use a volume at runtime, but not in build).
-      Dir.chdir(workdir) { system("bundle", "package", "--all", [:out, :err] => log) }
+      Dir.chdir(workdir) { system("bundle", "package", "--all", "--no-install", [:out, :err] => log) }
       exit $?.exitstatus unless $?.success?
 
       # we then reset the timestamps because bundle package --all has to copy the files installed from
