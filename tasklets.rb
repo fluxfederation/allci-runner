@@ -57,6 +57,8 @@ class Tasklet
   def log_command(*args)
     args.pop if args.last.is_a?(Hash)
     log.puts "Running #{args.join ' '}"
+  rescue IOError
+    STDERR.puts "Got #{$!.to_s.inspect} error trying to log the message #{args.join(' ').inspect} to #{log_filename}"
   end
 
   # subclasses must implement the #call method, which will be called in the spawned child process and should never return
