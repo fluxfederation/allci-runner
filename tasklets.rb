@@ -121,9 +121,8 @@ class BuildImageTasklet < Tasklet
     args << "-f"
     args << dockerfile
 
-    # by default we also make the runtime env variables available as build-time args; they'll have no effect unless the Dockerfile uses ARG
-    if container_details["args"] || container_details["env"]
-      Array(container_details["args"] || container_details["env"]).each do |key, value|
+    if container_details["build_args"]
+      Array(container_details["build_args"]).each do |key, value|
         args << "--build-arg"
         args << "#{key}=#{value}"
       end
@@ -184,8 +183,8 @@ class RunImageTasklet < Tasklet
     command << "--hostname"
     command << (container_details["hostname"] || container_name)
 
-    if container_details["env"]
-      Array(container_details["env"]).each do |key, value|
+    if container_details["runtime_env"]
+      Array(container_details["runtime_env"]).each do |key, value|
         command << "--env"
         command << "#{key}=#{value}"
       end
