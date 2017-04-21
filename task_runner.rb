@@ -4,7 +4,7 @@ class TaskRunner
   def initialize(task:, runner_name:, build_root:, cache_root:)
     @task = task
     @runner_name = runner_name
-    @pod_name = "allci-runner-#{runner_name}"
+    @pod_name = "allci-runner-#{runner_name.sub(/^[^a-zA-Z0-9]/, '_').gsub(/[^a-zA-Z0-9_.-]/, '_')}"
     @build_root = build_root
 
     @pod_build_directory = "#{build_root}/#{pod_name}"
