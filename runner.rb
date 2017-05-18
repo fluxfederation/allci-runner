@@ -43,8 +43,6 @@ loop do
       success, output, exit_code = task_runner.run(RunImageTasklet) if success
     end
 
-    task_runner.remove_pod
-
     puts "task #{task["task_id"]} finished, #{success ? 'success' : 'failed'}"
     if success
       client.request("/tasks/success", "task_id" => task["task_id"], "output" => output, "exit_code" => exit_code)
