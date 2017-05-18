@@ -24,6 +24,7 @@ class Tasklet
       @pid = fork { call }
     ensure
       @log.close
+      @log = nil
     end
   end
 
@@ -56,7 +57,8 @@ class Tasklet
 
   def log_command(*args)
     args.pop if args.last.is_a?(Hash)
-    log.puts "Running #{args.join ' '}"
+    message = "Running #{args.join ' '}"
+    log ? log.puts(message) : puts(message)
   rescue IOError
     STDERR.puts "Got #{$!.to_s.inspect} error trying to log the message #{args.join(' ').inspect} to #{log_filename}"
   end
