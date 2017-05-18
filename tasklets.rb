@@ -57,8 +57,7 @@ class Tasklet
 
   def log_command(*args)
     args.pop if args.last.is_a?(Hash)
-    message = "Running #{args.join ' '}"
-    log ? log.puts(message) : puts(message)
+    (log || STDOUT).puts("Running #{args.join ' '}")
   rescue IOError
     STDERR.puts "Got #{$!.to_s.inspect} error trying to log the message #{args.join(' ').inspect} to #{log_filename}"
   end

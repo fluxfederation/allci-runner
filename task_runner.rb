@@ -15,7 +15,7 @@ class TaskRunner
   end
 
   def clear_pod
-    system "docker rm -f $(docker ps --quiet --filter network=#{pod_name})", [:out, :err] => "/dev/null"
+    system "docker rm -f $(docker ps -a --quiet --filter network=#{pod_name})", [:out, :err] => "/dev/null"
   end
 
   def run(klass)
