@@ -1,24 +1,21 @@
 class TaskRunner
   attr_reader :task, :runner_name, :pod_name, :build_root, :pod_build_directory, :pod_cache_directory
 
-  def initialize(task:, runner_name:, build_root:, cache_root:)
+  def initialize(task:, runner_name:, pod_name:, build_root:, cache_root:)
     @task = task
     @runner_name = runner_name
-    @pod_name = "#{runner_name.sub(/^[^a-zA-Z0-9]/, '_').gsub(/[^a-zA-Z0-9_.-]/, '_')}"
+    @pod_name = pod_name
     @build_root = build_root
 
     @pod_build_directory = "#{build_root}/#{pod_name}"
     @pod_cache_directory = "#{cache_root}/#{pod_name}"
     reset_workdir
     make_cachedir
+    clear_pod
   end
 
-  def create_pod
-    system "docker network create --driver bridge #{pod_name}", [:out, :err] => "/dev/null"
-  end
-
-  def remove_pod
-    system "docker rm -f $(docker ps --quiet --filter network=#{pod_name}); docker network rm #{pod_name}", [:out, :err] => "/dev/null"
+  def clear_pod
+    system "docker rm -f $(docker ps --quiet --filter network=#{pod_name})", [:out, :err] => "/dev/null"
   end
 
   def run(klass)

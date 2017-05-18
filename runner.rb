@@ -10,6 +10,7 @@ require 'tasklets'
 
 service_url = ENV["CI_SERVICE_URL"] or raise("must specify the CI service URL in CI_SERVICE_URL")
 runner_name = ENV["RUNNER_NAME"] || Socket.gethostname
+pod_name = "#{runner_name.sub(/^[^a-zA-Z0-9]/, '_').gsub(/[^a-zA-Z0-9_.-]/, '_')}"
 client = AllciClient.new(service_url, runner_name)
 
 build_root = ENV["BUILD_ROOT"] || "tmp/build"
@@ -20,6 +21,8 @@ poll_frequency = 5 if poll_frequency.zero?
 
 dots = false
 
+system("docker network inspect #{pod_name}", [:out, :err] => "/dev/null") || system("docker network create --driver bridge #{pod_name}", [:out, :err] => "/dev/null")
+
 loop do
   # FUTURE: move the BuildImageTasklet inside a privileged docker container, and remove the need for a special bootstrap stage
   task = client.request("/tasks/pull", stage: %w(bootstrap spawn))
@@ -29,9 +32,7 @@ loop do
     dots = false
     puts "task #{task["task_id"]} stage #{task["stage"]} task #{task["task"]} assigned".squeeze(" ")
 
-    task_runner = TaskRunner.new(task: task, runner_name: runner_name, build_root: build_root, cache_root: cache_root)
-    task_runner.remove_pod
-    task_runner.create_pod
+    task_runner = TaskRunner.new(task: task, runner_name: runner_name, pod_name: pod_name, build_root: build_root, cache_root: cache_root)
 
     if task["stage"] == "bootstrap"
       success, output, exit_code = task_runner.run(BuildImageTasklet)
