@@ -19,11 +19,13 @@ cache_root = ENV["CACHE_ROOT"] || "tmp/cache"
 poll_frequency = ENV["CI_POLL_FREQUENCY"].to_i
 poll_frequency = 5 if poll_frequency.zero?
 
+stages_to_work_on = (ENV["STAGES"] || "bootstrap,spawn").split(",")
+
 dots = false
 
 loop do
   # FUTURE: move the BuildImageTasklet inside a privileged docker container, and remove the need for a special bootstrap stage
-  task = client.request("/tasks/pull", stage: %w(bootstrap spawn))
+  task = client.request("/tasks/pull", stage: stages_to_work_on)
 
   if task
     puts if dots
