@@ -21,8 +21,6 @@ poll_frequency = 5 if poll_frequency.zero?
 
 dots = false
 
-system("docker network inspect #{pod_name}", [:out, :err] => "/dev/null") || system("docker network create --driver bridge #{pod_name}", [:out, :err] => "/dev/null")
-
 loop do
   # FUTURE: move the BuildImageTasklet inside a privileged docker container, and remove the need for a special bootstrap stage
   task = client.request("/tasks/pull", stage: %w(bootstrap spawn))

@@ -12,10 +12,15 @@ class TaskRunner
     reset_workdir
     make_cachedir
     clear_pod
+    create_network
   end
 
   def clear_pod
-    system "docker rm -f $(docker ps -a --quiet --filter network=#{pod_name})", [:out, :err] => "/dev/null"
+    system("docker rm -f $(docker ps -a --quiet --filter network=#{pod_name})", [:out, :err] => "/dev/null")
+  end
+
+  def create_network
+    system("docker network inspect #{pod_name}", [:out, :err] => "/dev/null") || system("docker network create --driver bridge #{pod_name}", [:out, :err] => "/dev/null")
   end
 
   def run(klass)
