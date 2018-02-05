@@ -7,7 +7,7 @@ RUN echo "deb mirror://mirrors.ubuntu.com/mirrors.txt xenial main restricted uni
 	echo "deb mirror://mirrors.ubuntu.com/mirrors.txt xenial-security main restricted universe multiverse" >> /etc/apt/sources.list && \
 	DEBIAN_FRONTEND=noninteractive apt-get update && \
 	DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
-	DEBIAN_FRONTEND=noninteractive apt-get -y --no-install-recommends install ruby2.3 docker.io git-core openssh-client && \
+	DEBIAN_FRONTEND=noninteractive apt-get -y --no-install-recommends install ruby2.3 docker.io git-core openssh-client netcat-openbsd && \
 	apt-get clean -y && \
 	rm -rf /var/cache/apt/archives/* /var/lib/apt/lists/*
 
