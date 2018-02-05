@@ -129,6 +129,13 @@ class BuildImageTasklet < Tasklet
       end
     end
 
+    %w(http_proxy https_proxy no_proxy HTTP_PROXY HTTPS_PROXY NO_PROXY).each do |build_env_var|
+      if ENV[build_env_var]
+        args << "--build-arg"
+        args << "#{build_env_var}=#{ENV[build_env_var]}"
+      end
+    end
+
     args << workdir
 
     system("docker", "build", *args, [:out, :err] => log)
