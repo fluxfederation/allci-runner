@@ -20,7 +20,9 @@ class TaskRunner
   end
 
   def create_network
-    system("docker network inspect #{pod_name}", [:out, :err] => "/dev/null") || system("docker network create --driver bridge #{pod_name}", [:out, :err] => "/dev/null")
+    system("docker network inspect #{pod_name}", [:out, :err] => "/dev/null") ||
+      system("docker network create --driver bridge #{pod_name}", [:out, :err] => logfile_for('network')) ||
+      raise("Couldn't create docker network #{pod_name}: #{File.read(logfile_for('network')).chomp}")
   end
 
   def run(klass)
