@@ -1,11 +1,12 @@
 class TaskRunner
-  attr_reader :task, :runner_name, :pod_name, :build_root, :pod_build_directory, :pod_cache_directory
+  attr_reader :task, :runner_name, :pod_name, :build_root, :subnet, :pod_build_directory, :pod_cache_directory
 
-  def initialize(task:, runner_name:, pod_name:, build_root:, cache_root:)
+  def initialize(task:, runner_name:, pod_name:, build_root:, cache_root:, subnet:)
     @task = task
     @runner_name = runner_name
     @pod_name = pod_name
     @build_root = build_root
+    @subnet = subnet
 
     @pod_build_directory = "#{build_root}/#{pod_name}"
     @pod_cache_directory = "#{cache_root}/#{pod_name}"
@@ -21,8 +22,12 @@ class TaskRunner
 
   def create_network
     system("docker network inspect #{pod_name}", [:out, :err] => "/dev/null") ||
-      system("docker network create --driver bridge #{pod_name}", [:out, :err] => logfile_for('network')) ||
+      system("docker network create --driver bridge#{network_options} #{pod_name}", [:out, :err] => logfile_for('network')) ||
       raise("Couldn't create docker network #{pod_name}: #{File.read(logfile_for('network')).chomp}")
+  end
+
+  def network_options
+    " --subnet #{subnet}" if subnet
   end
 
   def run(klass)

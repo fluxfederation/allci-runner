@@ -15,6 +15,7 @@ client = AllciClient.new(service_url, runner_name)
 
 build_root = ENV["BUILD_ROOT"] || "tmp/build"
 cache_root = ENV["CACHE_ROOT"] || "tmp/cache"
+subnet = ENV["SUBNET"]
 
 poll_frequency = ENV["CI_POLL_FREQUENCY"].to_i
 poll_frequency = 5 if poll_frequency.zero?
@@ -32,7 +33,7 @@ loop do
     dots = false
     puts "task #{task["task_id"]} stage #{task["stage"]} task #{task["task"]} assigned".squeeze(" ")
 
-    task_runner = TaskRunner.new(task: task, runner_name: runner_name, pod_name: pod_name, build_root: build_root, cache_root: cache_root)
+    task_runner = TaskRunner.new(task: task, runner_name: runner_name, pod_name: pod_name, build_root: build_root, cache_root: cache_root, subnet: subnet)
 
     if task["stage"] == "bootstrap"
       success, output, exit_code = task_runner.run(BuildImageTasklet)
