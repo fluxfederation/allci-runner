@@ -1,7 +1,7 @@
 require 'digest'
 
 class Tasklet
-  attr_reader :build_task_id, :build_id, :build_stage, :build_task, :runner_name, :pod_name, :container_name, :container_details, :log_filename, :workdir, :cachedir, :log
+  attr_reader :build_task_id, :build_id, :build_stage, :build_task, :runner_name, :pod_name, :container_name, :container_details, :log_filename, :workdir, :cachedir, :logfile
 
   # called in the parent process
   def initialize(build_task_id:, build_id:, build_stage:, build_task:, runner_name:, pod_name:, container_name:, container_details:, log_filename:, workdir:, cachedir:)
@@ -19,12 +19,12 @@ class Tasklet
   end
 
   def spawn_and_run
-    @log = File.open(log_filename, "w+").tap { |file| file.sync = true }
+    @logfile = File.open(log_filename, "w+").tap { |file| file.sync = true }
     begin
       @pid = fork { call }
     ensure
-      @log.close
-      @log = nil
+      @logfile.close
+      @logfile = nil
     end
   end
 
@@ -46,24 +46,20 @@ class Tasklet
   end
 
   def exec(*args)
-    log_command(*args)
+    log(*args)
     super
   end
 
   def system(*args)
-    log_command(*args)
+    log(*args)
     super
   end
 
-  def log_command(*args)
+  def log(*args)
     args.pop if args.last.is_a?(Hash)
-    (log || STDOUT).puts("#{timestamp} Running #{args.join ' '}")
+    (logfile || STDOUT).puts("#{TaskRunner.timestamp} Running #{args.join ' '}")
   rescue IOError
-    STDERR.puts "Got #{$!.to_s.inspect} error trying to log the message #{args.join(' ').inspect} to #{log_filename}"
-  end
-
-  def timestamp
-    Time.now.strftime("%F %T")
+    STDERR.puts "#{TaskRunner.timestamp} Got #{$!.to_s.inspect} error trying to log the message #{args.join(' ').inspect} to #{log_filename}"
   end
 
   # subclasses must implement the #call method, which will be called in the spawned child process and should never return
@@ -76,37 +72,37 @@ class BuildImageTasklet < Tasklet
 
   def call
     if Dir.exist?(repository_cache_path)
-      log.puts "#{timestamp} Updating #{container_details["repository_uri"]}"
-      Dir.chdir(repository_cache_path) { system("git", "fetch", [:out, :err] => log) }
+      log "Updating #{container_details["repository_uri"]}"
+      Dir.chdir(repository_cache_path) { system("git", "fetch", [:out, :err] => logfile) }
       exit $?.exitstatus unless $?.success?
     else
-      log.puts "#{timestamp} Cloning #{container_details["repository_uri"]}"
-      system("git", "clone", "--mirror", container_details["repository_uri"], repository_cache_path, [:out, :err] => log)
+      log "Cloning #{container_details["repository_uri"]}"
+      system("git", "clone", "--mirror", container_details["repository_uri"], repository_cache_path, [:out, :err] => logfile)
       exit $?.exitstatus unless $?.success?
     end
 
-    log.puts "#{timestamp} Cloning cached repository and checking out branch #{container_details["branch"]}"
+    log "Cloning cached repository and checking out branch #{container_details["branch"]}"
     FileUtils.rm_r(workdir) if File.exist?(workdir)
-    system("git", "clone", "--branch", container_details["branch"], repository_cache_path, workdir, [:out, :err] => log)
+    system("git", "clone", "--branch", container_details["branch"], repository_cache_path, workdir, [:out, :err] => logfile)
     exit $?.exitstatus unless $?.success?
 
-    Dir.chdir(workdir) { system("git", "log", "-n1", "--oneline", [:out, :err] => log) }
+    Dir.chdir(workdir) { system("git", "log", "-n1", "--oneline", [:out, :err] => logfile) }
 
     dockerfile = "#{workdir}/#{container_details["dockerfile"]}"
     unless File.exist?(dockerfile)
-      log.puts "#{timestamp} Couldn't see a dockerfile named #{container_details["dockerfile"]} in the repository #{container_details["repository_uri"]} on branch #{container_details["branch"]}"
+      log "Couldn't see a dockerfile named #{container_details["dockerfile"]} in the repository #{container_details["repository_uri"]} on branch #{container_details["branch"]}"
       exit 1
     end
 
     # FUTURE: extract this to a generic build hook mechanism, or have a "meta" docker builder container
     if File.exist?("#{workdir}/Gemfile.lock")
-      log.puts "#{timestamp} Packaging bundle for #{container_details["image_name"]}"
+      log "Packaging bundle for #{container_details["image_name"]}"
 
       # we need to cache the bundle because nothing outside the build context will be available during
       # the docker build, and we would otherwise have to put the deploy key in the docker build.  we
       # also want to reuse gem downloads whereever possible, even if one of the other gems has changed,
       # which isn't possible inside the docker build (you can use a volume at runtime, but not in build).
-      Dir.chdir(workdir) { system("bundle", "package", "--all", "--no-install", [:out, :err] => log) }
+      Dir.chdir(workdir) { system("bundle", "package", "--all", "--no-install", [:out, :err] => logfile) }
       exit $?.exitstatus unless $?.success?
 
       # we then reset the timestamps because bundle package --all has to copy the files installed from
@@ -117,7 +113,7 @@ class BuildImageTasklet < Tasklet
       exit $?.exitstatus unless $?.success?
     end
 
-    log.puts "#{timestamp} Building #{container_details["image_name"]} using dockerfile #{container_details["dockerfile"]}"
+    log "Building #{container_details["image_name"]} using dockerfile #{container_details["dockerfile"]}"
     args = []
 
     args << "-t"
@@ -142,7 +138,8 @@ class BuildImageTasklet < Tasklet
 
     args << workdir
 
-    system("docker", "build", *args, [:out, :err] => log)
+    system("docker", "build", *args, [:out, :err] => logfile)
+    log "Building #{container_details["image_name"]} #{$?.success? ? "completed successfully" : "failed"}"
     exit $?.exitstatus
   end
 
@@ -157,7 +154,7 @@ class PushImageTasklet < Tasklet
   end
 
   def call
-    exec("docker", "push", container_details["image_name"], [:out, :err] => log)
+    exec("docker", "push", container_details["image_name"], [:out, :err] => logfile)
   end
 end
 
@@ -170,7 +167,7 @@ class PullImageTasklet < Tasklet
     system("docker", "inspect", container_details["image_name"], [:out, :err] => "/dev/null")
 
     unless $?.success?
-      exec("docker", "pull", container_details["image_name"], [:out, :err] => log)
+      exec("docker", "pull", container_details["image_name"], [:out, :err] => logfile)
     end
   end
 end
@@ -237,7 +234,7 @@ class RunImageTasklet < Tasklet
       command.concat Array(container_details["cmd"])
     end
 
-    exec(*command, [:out, :err] => log)
+    exec(*command, [:out, :err] => logfile)
   end
 
   def finished(process_status, running_tasklets)

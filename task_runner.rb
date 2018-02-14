@@ -1,6 +1,10 @@
 class TaskRunner
   attr_reader :task, :runner_name, :pod_name, :build_root, :subnet, :pod_build_directory, :pod_cache_directory
 
+  def self.timestamp
+    Time.now.strftime("%F %T")
+  end
+
   def initialize(task:, runner_name:, pod_name:, build_root:, cache_root:, subnet:)
     @task = task
     @runner_name = runner_name
@@ -49,7 +53,7 @@ class TaskRunner
 
     # fork and run each tasklet
     running_tasklets = tasklets.each_with_object({}) do |tasklet, results|
-      puts "#{tasklet} starting."
+      puts "#{self.class.timestamp} #{tasklet} starting."
       results[tasklet.spawn_and_run] = tasklet
     end
 
@@ -68,9 +72,9 @@ class TaskRunner
       success &= process_status.success?
 
       if process_status.success?
-        puts "#{tasklet} successful."
+        puts "#{self.class.timestamp} #{tasklet} successful."
       else
-        puts "#{tasklet} failed with exit code #{exit_code[tasklet.container_name]}.  container output:\n\n\t#{output[tasklet.container_name].gsub "\n", "\n\t"}"
+        puts "#{self.class.timestamp} #{tasklet} failed with exit code #{exit_code[tasklet.container_name]}.  container output:\n\n\t#{output[tasklet.container_name].gsub "\n", "\n\t"}"
       end
 
       # depending on the tasklet, it may then tell all the others to stop

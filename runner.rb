@@ -31,7 +31,7 @@ loop do
   if task
     puts if dots
     dots = false
-    puts "task #{task["task_id"]} stage #{task["stage"]} task #{task["task"]} assigned".squeeze(" ")
+    puts "#{TaskRunner.timestamp} task #{task["task_id"]} stage #{task["stage"]} task #{task["task"]} assigned".squeeze(" ")
 
     task_runner = TaskRunner.new(task: task, runner_name: runner_name, pod_name: pod_name, build_root: build_root, cache_root: cache_root, subnet: subnet)
 
@@ -44,7 +44,7 @@ loop do
       success, output, exit_code = task_runner.run(RunImageTasklet) if success
     end
 
-    puts "task #{task["task_id"]} finished, #{success ? 'success' : 'failed'}"
+    puts "#{TaskRunner.timestamp} task #{task["task_id"]} finished, #{success ? 'success' : 'failed'}"
     if success
       client.request("/tasks/success", "task_id" => task["task_id"], "output" => output, "exit_code" => exit_code)
     else
