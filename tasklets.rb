@@ -57,9 +57,13 @@ class Tasklet
 
   def log_command(*args)
     args.pop if args.last.is_a?(Hash)
-    (log || STDOUT).puts("Running #{args.join ' '}")
+    (log || STDOUT).puts("#{timestamp} Running #{args.join ' '}")
   rescue IOError
     STDERR.puts "Got #{$!.to_s.inspect} error trying to log the message #{args.join(' ').inspect} to #{log_filename}"
+  end
+
+  def timestamp
+    Time.now.strftime("%F %T")
   end
 
   # subclasses must implement the #call method, which will be called in the spawned child process and should never return
@@ -72,16 +76,16 @@ class BuildImageTasklet < Tasklet
 
   def call
     if Dir.exist?(repository_cache_path)
-      log.puts "Updating #{container_details["repository_uri"]}"
+      log.puts "#{timestamp} Updating #{container_details["repository_uri"]}"
       Dir.chdir(repository_cache_path) { system("git", "fetch", [:out, :err] => log) }
       exit $?.exitstatus unless $?.success?
     else
-      log.puts "Cloning #{container_details["repository_uri"]}"
+      log.puts "#{timestamp} Cloning #{container_details["repository_uri"]}"
       system("git", "clone", "--mirror", container_details["repository_uri"], repository_cache_path, [:out, :err] => log)
       exit $?.exitstatus unless $?.success?
     end
 
-    log.puts "Cloning cached repository and checking out branch #{container_details["branch"]}"
+    log.puts "#{timestamp} Cloning cached repository and checking out branch #{container_details["branch"]}"
     FileUtils.rm_r(workdir) if File.exist?(workdir)
     system("git", "clone", "--branch", container_details["branch"], repository_cache_path, workdir, [:out, :err] => log)
     exit $?.exitstatus unless $?.success?
@@ -90,13 +94,13 @@ class BuildImageTasklet < Tasklet
 
     dockerfile = "#{workdir}/#{container_details["dockerfile"]}"
     unless File.exist?(dockerfile)
-      log.puts "Couldn't see a dockerfile named #{container_details["dockerfile"]} in the repository #{container_details["repository_uri"]} on branch #{container_details["branch"]}"
+      log.puts "#{timestamp} Couldn't see a dockerfile named #{container_details["dockerfile"]} in the repository #{container_details["repository_uri"]} on branch #{container_details["branch"]}"
       exit 1
     end
 
     # FUTURE: extract this to a generic build hook mechanism, or have a "meta" docker builder container
     if File.exist?("#{workdir}/Gemfile.lock")
-      log.puts "Packaging bundle for #{container_details["image_name"]}"
+      log.puts "#{timestamp} Packaging bundle for #{container_details["image_name"]}"
 
       # we need to cache the bundle because nothing outside the build context will be available during
       # the docker build, and we would otherwise have to put the deploy key in the docker build.  we
@@ -113,7 +117,7 @@ class BuildImageTasklet < Tasklet
       exit $?.exitstatus unless $?.success?
     end
 
-    log.puts "Building #{container_details["image_name"]} using dockerfile #{container_details["dockerfile"]}"
+    log.puts "#{timestamp} Building #{container_details["image_name"]} using dockerfile #{container_details["dockerfile"]}"
     args = []
 
     args << "-t"
