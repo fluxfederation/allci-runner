@@ -19,7 +19,7 @@ class Tasklet
   end
 
   def spawn_and_run
-    @logfile = File.open(log_filename, "w+").tap { |file| file.sync = true }
+    @logfile = File.open(log_filename, "a+").tap { |file| file.sync = true }
     begin
       @pid = fork { call }
     ensure
