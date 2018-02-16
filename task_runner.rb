@@ -67,7 +67,7 @@ class TaskRunner
       # wait for the first one of them to exit
       exited_child, process_status = Process.wait2
       tasklet = running_tasklets.delete(exited_child)
-      output[tasklet.container_name] = tasklet.output
+      output[tasklet.container_name] = tasklet.output.scrub
       exit_code[tasklet.container_name] = process_status.exitstatus
       success &= process_status.success?
 
