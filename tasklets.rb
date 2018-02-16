@@ -46,18 +46,19 @@ class Tasklet
   end
 
   def exec(*args)
-    log(*args)
+    log("Running", *args)
     super
   end
 
-  def system(*args)
-    log(*args)
-    super
+  def system(*args, exit_on_failure: true)
+    log("Running", *args)
+    super(*args)
+    exit $?.exitstatus if exit_on_failure && !$?.success?
   end
 
   def log(*args)
     args.pop if args.last.is_a?(Hash)
-    (logfile || STDOUT).puts("#{TaskRunner.timestamp} Running #{args.join ' '}")
+    (logfile || STDOUT).puts("#{TaskRunner.timestamp} #{args.join ' '}")
   rescue IOError
     STDERR.puts "#{TaskRunner.timestamp} Got #{$!.to_s.inspect} error trying to log the message #{args.join(' ').inspect} to #{log_filename}"
   end
@@ -74,17 +75,14 @@ class BuildImageTasklet < Tasklet
     if Dir.exist?(repository_cache_path)
       log "Updating #{container_details["repository_uri"]}"
       Dir.chdir(repository_cache_path) { system("git", "fetch", [:out, :err] => logfile) }
-      exit $?.exitstatus unless $?.success?
     else
       log "Cloning #{container_details["repository_uri"]}"
       system("git", "clone", "--mirror", container_details["repository_uri"], repository_cache_path, [:out, :err] => logfile)
-      exit $?.exitstatus unless $?.success?
     end
 
     log "Cloning cached repository and checking out branch #{container_details["branch"]}"
     FileUtils.rm_r(workdir) if File.exist?(workdir)
     system("git", "clone", "--branch", container_details["branch"], repository_cache_path, workdir, [:out, :err] => logfile)
-    exit $?.exitstatus unless $?.success?
 
     Dir.chdir(workdir) { system("git", "log", "-n1", "--oneline", [:out, :err] => logfile) }
 
@@ -94,24 +92,12 @@ class BuildImageTasklet < Tasklet
       exit 1
     end
 
+    # we need to cache the bundle because nothing outside the build context will be available during
+    # the docker build, and we would otherwise have to put the deploy key in the docker build.  we
+    # also want to reuse gem downloads whereever possible, even if one of the other gems has changed,
+    # which isn't possible inside the docker build (you can use a volume at runtime, but not in build).
     # FUTURE: extract this to a generic build hook mechanism, or have a "meta" docker builder container
-    if File.exist?("#{workdir}/Gemfile.lock")
-      log "Packaging bundle for #{container_details["image_name"]}"
-
-      # we need to cache the bundle because nothing outside the build context will be available during
-      # the docker build, and we would otherwise have to put the deploy key in the docker build.  we
-      # also want to reuse gem downloads whereever possible, even if one of the other gems has changed,
-      # which isn't possible inside the docker build (you can use a volume at runtime, but not in build).
-      Dir.chdir(workdir) { system("bundle", "package", "--all", "--no-install", [:out, :err] => logfile) }
-      exit $?.exitstatus unless $?.success?
-
-      # we then reset the timestamps because bundle package --all has to copy the files installed from
-      # git gems directly and it always touches their timestamps, which would then make docker's COPY
-      # command think the gems directory has changed and would cause it to reinstall rather than using
-      # the image of that step from last time.
-      Dir.chdir(workdir) { system("find vendor/cache | xargs touch -t 200001010000.00") }
-      exit $?.exitstatus unless $?.success?
-    end
+    package_bundle if File.exist?("#{workdir}/Gemfile.lock")
 
     log "Building #{container_details["image_name"]} using dockerfile #{container_details["dockerfile"]}"
     args = []
@@ -138,13 +124,41 @@ class BuildImageTasklet < Tasklet
 
     args << workdir
 
-    system("docker", "build", *args, [:out, :err] => logfile)
+    system("docker", "build", *args, [:out, :err] => logfile, exit_on_failure: false)
     log "Building #{container_details["image_name"]} #{$?.success? ? "completed successfully" : "failed"}"
     exit $?.exitstatus
   end
 
   def repository_cache_path
     @repository_cache_path ||= "#{cachedir}/repository/#{Digest::SHA256.hexdigest container_details["repository_uri"]}"
+  end
+
+  def package_bundle
+    log "Packaging bundle for #{container_details["image_name"]}"
+
+    # we want the gem cache to persist across builds, so we rsync to and from a persistent cache
+    # directory.  the alternative would be to make vendor/cache point to the persistent cache, but this
+    # would have the downside that when two different sets of gems are being installed by different
+    # branches, packaging one would wipe the different gems from the other; there is a --no-prune option
+    # to address this, but unfortunately that would have a different downside: then when another gem is
+    # added by another branch, it would invalidate the docker layer cache, because the new file would be
+    # added by the Dockerfile step that copies in vendor/cache.
+    gem_cache_dir = "#{cachedir}/gems/"
+    bundle_package_dir = "#{workdir}/vendor/cache/"
+    FileUtils.mkdir_p(gem_cache_dir)
+    FileUtils.mkdir_p(bundle_package_dir)
+    system("rsync", "-ra", "--delete", gem_cache_dir, bundle_package_dir,     [:out, :err] => logfile)
+
+    # download but don't install the gems
+    Dir.chdir(workdir) { system("bundle", "package", "--all", "--no-install", [:out, :err] => logfile) }
+
+    # we then reset the timestamps because bundle package --all has to copy the files installed from
+    # git gems directly and it always touches their timestamps, which would then make docker's COPY
+    # command think the gems directory has changed and would cause it to reinstall rather than using
+    # the image of that step from last time.
+    system("find #{bundle_package_dir} | xargs touch -t 200001010000.00",     [:out, :err] => logfile)
+
+    system("rsync", "-ra", bundle_package_dir, gem_cache_dir,                 [:out, :err] => logfile)
   end
 end
 
@@ -164,7 +178,7 @@ class PullImageTasklet < Tasklet
   end
 
   def call
-    system("docker", "inspect", container_details["image_name"], [:out, :err] => "/dev/null")
+    system("docker", "inspect", container_details["image_name"], [:out, :err] => "/dev/null", exit_on_failure: false)
 
     unless $?.success?
       exec("docker", "pull", container_details["image_name"], [:out, :err] => logfile)
@@ -240,6 +254,6 @@ class RunImageTasklet < Tasklet
   def finished(process_status, running_tasklets)
     # stop all the other containers in the pod.  we could use running_tasklets.values.each(&:stop) but
     # docker stop is better as it has the automatic fallback to kill the container after 10s.
-    system "docker stop $(docker ps --quiet --filter network=#{pod_name})", [:out, :err] => "/dev/null"
+    system "docker stop $(docker ps --quiet --filter network=#{pod_name})", [:out, :err] => "/dev/null", exit_on_failure: false
   end
 end
